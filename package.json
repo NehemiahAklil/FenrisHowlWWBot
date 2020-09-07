@@ -1,0 +1,21 @@
+{
+  "name": "FenrisHowlWWBot",
+  "version": "1.0.0",
+  "description": "A helper bot made for counting howl points in Ethio Werewolf - The Origin",
+  "main": "app.js",
+  "author": "Nehemiah Aklil",
+  "license": "MIT",
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "dependencies": {
+    "config": "^3.3.1",
+    "telegraf": "^3.38.0",
+    "mongoose": "^5.8.9",
+    "node-telegram-bot-api": "^0.40.0",
+    "stringify": "^5.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.4"
+  }
+}
