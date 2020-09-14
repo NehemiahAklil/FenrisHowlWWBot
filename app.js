@@ -1,110 +1,100 @@
 const Telegraf = require('telegraf');
-const { Extra, Markup } = require('telegraf');
-const fs = require('fs');
-const replies = require('./replies');
+const mongoose = require('mongoose');
 const config = require('config');
 const botToken = config.get('botToken');
 const bot = new Telegraf(botToken);
-const { telegram } = bot;
-const { parseGameMessage, checkUserRole, sendError } = require('./actions');
-
+const replyMsg = require('./replies');
+const {
+  helpCommand,
+  startBotCommand,
+  howlPointsCommand,
+  silenceHowlsCommand,
+  checkPlayerCommand,
+  changeModeCommand,
+  findPlayerByIdCommand,
+  findPlayerByUsernameCommand,
+  loudestHowlsCommand,
+  claimPackMemberCommand,
+  banishPackMemberCommand,
+  deleteGameCommand,
+  deleteLastGameCommand,
+  makeAlphaCommand,
+  createPackCommand,
+  deletePackCommand,
+} = require('./commands');
+const { checkGameMode, sendError } = require('./actions');
+const { checkFindPlayerRegex } = require('./utils/helpers');
 bot.use(async (ctx, next) => {
   const start = new Date();
   await next();
   const ms = new Date() - start;
   console.log('Response time: %sms', ms);
 });
-//Handles on start message or '/start' command
-bot.start((ctx) => ctx.reply("Welcome to Fenris' Howl Bot"));
-//Handles on help message or '/help' command
-bot.help(async (ctx) => {
-  try {
-    if (ctx.chat.type === 'private') {
-      ctx.reply('');
-    } else {
-      await ctx.reply(
-        replies.helpButton,
-        Extra.markup(
-          Markup.inlineKeyboard([
-            [
-              Markup.urlButton(
-                "Go to Fenris' Howl Bot🐺",
-                'https://t.me/FenrisHowlWWBot'
-              ),
-            ],
-          ])
-        ).HTML()
-      );
-    }
-  } catch (err) {
-    console.log(err);
-  }
+bot.catch((err, ctx) => {
+  console.log(`Ooops, encountered an error for ${ctx.updateType}`, err);
 });
-bot.on('sticker', (ctx) => ctx.reply('👍'));
+mongoose
+  .connect('mongodb://localhost/FenrisWW', {
+    useUnifiedTopology: true,
+    useNewUrlParser: true,
+    useFindAndModify: false,
+    useCreateIndex: true,
+    dbName: 'FenrisWW',
+  })
+  .then(() => {
+    console.log('Connected to FenrisWW');
+    // bot.startPolling();
+  })
+  .catch((err) => console.log(err));
+mongoose.Promise = global.Promise;
+//Handles on start message or '/start' command
+bot.start(async (ctx) => await startBotCommand(ctx));
+//Handles on help message or '/help' command
+bot.help(async (ctx) => await helpCommand(ctx));
+// bot.on('sticker', (ctx) => ctx.reply('👍'));
 
 // Handles finding users by Id or userName from db to display their howl points
 bot.command('find', async (ctx) => {
   try {
-    const chatInfo = ctx.chat.id;
-    const userInfo = ctx.from.id;
-
-    console.log(ctx.from.id);
-    // ctx.reply(chatInfo);
-    const user = await telegram.getChatMember(ctx.chat.id, ctx.from.id);
-    if (['creator', 'administrator'].includes(user.status)) {
-      return ctx.reply('Behold ' + user.status);
-    } else {
-      ctx.reply(user.status);
+    const { type, parsedRegex, errorMsg } = await checkFindPlayerRegex(
+      ctx.message.text
+    );
+    switch (type) {
+      case 'findById':
+        return await findPlayerByIdCommand(parsedRegex, ctx);
+      case 'findByUsername':
+        return await findPlayerByUsernameCommand(parsedRegex, ctx);
+      default:
+        return ctx.reply(errorMsg);
     }
   } catch (err) {
-    console.log(err);
-  }
-});
-
-// Handles updating users howl points if called by admin in reply to a game end message
-bot.command('howl_points', async (ctx) => {
-  try {
-    const repliedToMessage = ctx.message.reply_to_message || null;
-    if (!repliedToMessage) {
-      ctx.reply(
-        "The message doesn't contain a proper reply message \nMake sure the replied message isn't forwarded"
-      );
-      throw new Error("reply_to_message doesn't exist");
-    }
-    // ctx.reply(repliedToMessage.text);
-    // fs.writeFileSync('./word.txt', repliedToMessage);
-    const { userInfo, gameInfo } = await parseGameMessage(
-      repliedToMessage.text
-    );
-    // console.log(repliedToMessage);
-    const { playersAlive, totalPlayers, numberOfWinners } = gameInfo;
-    ctx.reply(
-      `The game had ${totalPlayers} players out this players ${playersAlive} were alive and also ${numberOfWinners} won the game`
-    );
-    let replyMessage = [];
-    userInfo.forEach((singleMessage) => {
-      const { name, lifeStatus, winningStatus, role } = singleMessage;
-      replyMessage.push(
-        `${name} was ${lifeStatus} and ${winningStatus} with the role ${role}`
-      );
-    });
-    replyMessage = JSON.stringify(replyMessage, (key, value) => value, '\n');
-    console.log(replyMessage);
-    return ctx.reply(replyMessage);
-  } catch (err) {
-    console.log(err);
     sendError(err, ctx);
+    return console.log(err);
   }
 });
+bot.command('make_alpha', async (ctx) => await makeAlphaCommand(ctx));
+bot.command('create_pack', async (ctx) => await createPackCommand(ctx));
+bot.command('delete_pack', async (ctx) => await deletePackCommand(ctx));
+
+bot.command('changeMode', async (ctx) => await changeModeCommand(ctx));
+bot.command('check', async (ctx) => await checkPlayerCommand(ctx));
+// Handles updating users howl points if called by admin in reply to a game end message
+bot.command('howl_points', async (ctx) => await howlPointsCommand(ctx));
+//Handles deleting part of the db's collections
+bot.command('silence_howls', async (ctx) => await silenceHowlsCommand(ctx));
+// Handles the return of the mightiest player with the best howl points in packWar or loneWolf mode
+bot.command('loudest_howls', async (ctx) => await loudestHowlsCommand(ctx));
+// Handles initiate or claim players to a pack
+bot.command('initiate', async (ctx) => await claimPackMemberCommand(ctx));
+bot.command('claim', async (ctx) => await claimPackMemberCommand(ctx));
+// Handles dropping player from a clan
+bot.command('banish', async (ctx) => await banishPackMemberCommand(ctx));
+// Handles deleting a game when given an id
+bot.command('delete_game', async (ctx) => await deleteGameCommand(ctx));
+// Handles deleting the last game played from db
 bot.command(
-  'silence_howls',
-  Telegraf.reply('I will silence all thee howls of this miserable wolfs')
+  'delete_last_game',
+  async (ctx) => await deleteLastGameCommand(ctx)
 );
-bot.command(
-  'loudest_howls',
-  Telegraf.reply(
-    'These are the mightiest of all the other wolfs. Leading the fray with their harmonies howls of power.'
-  )
-);
-bot.hears('hi', (ctx) => ctx.reply('Hey there'));
+// bot.hears('hi', (ctx) => ctx.reply('Hey there'));
 bot.launch();

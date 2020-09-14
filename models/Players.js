@@ -1,15 +1,26 @@
 const mongoose = require('mongoose');
 
 const playersSchema = mongoose.Schema({
-  TelegramId: String,
+  TelegramId: {
+    type: Number,
+    unique: true,
+    sparse: true,
+    required: true,
+  },
   firstName: String,
-  gamesWonCount: Number,
-  gamesAliveCount: Number,
-  gamesCount: Number,
-  howlPoints: Number,
-  affiliatedClan: {
+  userName: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  loneWolfMode: {
+    gamesWonCount: Number,
+    gamesCount: Number,
+    howlPoints: Number,
+  },
+  pack: {
     type: mongoose.SchemaTypes.ObjectId,
-    ref: 'Clans',
+    ref: 'Packs',
   },
 });
 const Players = mongoose.model('Players', playersSchema);
