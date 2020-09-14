@@ -1,1 +1,4 @@
 node_modules/
+*.txt
+keyboard-bot.js
+try.js
