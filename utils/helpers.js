@@ -2,6 +2,22 @@ const { sendError, checkGameMode } = require('../actions');
 const replyMsg = require('../replies');
 const rolePoints = require('../rolePoints.json');
 module.exports = {
+  getIconsForTopHowlers: (ranking) => {
+    switch (ranking) {
+      case 1:
+        return String.fromCodePoint(0x1f947);
+      case 2:
+        return String.fromCodePoint(0x1f948);
+      case 3:
+        return String.fromCodePoint(0x1f949);
+      case 4:
+        return String.fromCodePoint(0x1f3c5);
+      case 5:
+        return String.fromCodePoint(0x1f396, 0xfe0f);
+      default:
+        return ranking;
+    }
+  },
   removeFirstAndTwoOfLast: async (array) => {
     try {
       const arrayLength = array.length;

@@ -1,5 +1,5 @@
 const Telegraf = require('telegraf');
-const Extra = require('telegraf/extra');
+const { Extra, Markup } = require('telegraf');
 const config = require('config');
 const botToken = config.get('botToken');
 const devId = config.get('devId');
@@ -20,12 +20,24 @@ const checkGameMode = async (db) => {
       return 'NoMode';
   }
 };
+const checkIfReplyToMessageExists = async (ctx) => {
+  try {
+    const repliedToMessage = ctx.message.reply_to_message || false;
+    if (!repliedToMessage) {
+      ctx.reply(replies.repliedMessage.notFound);
+      new Error("reply_to_message doesn't exist");
+      return false;
+    }
+    return repliedToMessage;
+  } catch (err) {
+    console.log(err.message);
+    // sendError(err, ctx);
+  }
+};
 const checkUserRole = async (ctx) => {
   try {
     const chatInfo = ctx.chat.id;
     const userInfo = ctx.from.id;
-    // console.log(ctx.from.id);
-    // ctx.reply(chatInfo);
     const user = await telegram.getChatMember(chatInfo, userInfo);
     if (['creator', 'administrator'].includes(user.status)) {
       return { isAdmin: true, role: user.status };
@@ -36,21 +48,46 @@ const checkUserRole = async (ctx) => {
     console.log(err);
   }
 };
+const deleteAlphaLessPack = async (pack, packId) => {
+  try {
+    let checkPack = pack ? pack : await Packs.findById(packId);
+    if (checkPack) {
+      if (checkPack.alphas.length < 1)
+        return await Packs.findByIdAndDelete(checkPack._id);
+    }
+    return;
+  } catch (err) {
+    console.log(err);
+    sendError(err);
+  }
+};
+const deletionWarningMessage = async (ctx, deletionType, deletionCallback) => {
+  return ctx.reply(
+    `Are you sure you want to ${deletionType}`,
+    Markup.inlineKeyboard([
+      Markup.callbackButton(`⚠️ Yes, ${deletionType}`, deletionCallback),
+      Markup.callbackButton(
+        `❌ No, Cancel ${deletionType}`,
+        `cancel ${deletionType}`
+      ),
+    ]).extra()
+  );
+};
 const findPlayerInfo = async (playerInfo) => {
   let packInfo = {};
   console.log(playerInfo._id);
   console.log(playerInfo.pack);
   const points = await Points.findOne({ playerId: playerInfo._id });
-  if (playerInfo.pack) {
-    const affiliatedPack = await Packs.findById(playerInfo.pack);
-    console.log(affiliatedPack.name);
-    packInfo = { pack: affiliatedPack.name };
-  }
   if (points) {
+    if (playerInfo.pack) {
+      const affiliatedPack = await Packs.findById(playerInfo.pack);
+      console.log(affiliatedPack.name);
+      packInfo = { name: affiliatedPack.name, emblem: affiliatedPack.emblem };
+    }
     console.log(packInfo);
-    return { ...packInfo, points: points.howlPoints };
+    return { pack: packInfo, points: points.howlPoints };
   } else {
-    return { ...packInfo, points: 0 };
+    return { pack: packInfo, points: 0 };
   }
 };
 const sendFindPlayerReplyMessage = async (
@@ -62,18 +99,15 @@ const sendFindPlayerReplyMessage = async (
 ) => {
   let responseMsg = '';
   if (points > 0) {
-    // responseMsg = `<a href="tg://user?id=${queryPlayer.TelegramId}">${queryPlayer.firstName}</a>'s thundering howls echoed through the night for <b>${playerStatus.points} times</b> in the dazzling radiance of the moon light✨`;
     responseMsg = replies.findPlayer.responseMessage(
       TelegramId,
       firstName,
       points
     );
   } else {
-    // responseMsg = `<a href="tg://user?id=${queryPlayer.TelegramId}">${queryPlayer.firstName}</a> wishfully stares at the dazzling moon light✨ yet to put a mark in the starry night`;
     responseMsg = replies.findPlayer.zeroHowlResponseMsg(TelegramId, firstName);
   }
   if (pack) {
-    // responseMsg += ` accompanied by their brethren <i>${playerStatus.pack}</i> pack members harmony`;
     responseMsg += replies.findPlayer.withPackResponseAddOn(pack);
   }
   return ctx.reply(responseMsg, Extra.HTML());
@@ -91,7 +125,7 @@ const checkIfPackAlpha = async (userId) => {
       return { isAlpha: false, message: replies.player.packNotFound };
     }
     if (usersPack.alphas.includes(player._id)) {
-      return { isAlpha: true, packId: player.pack };
+      return { isAlpha: true, packId: player.pack, alpha: player };
     } else
       return {
         isAlpha: false,
@@ -118,7 +152,7 @@ const updateGamePlayersInfo = async (repliedMessage) => {
         },
         {
           firstName: first_name,
-          userName: username,
+          userName: username.toLowerCase(),
         },
         { new: true }
       )
@@ -129,9 +163,16 @@ const updateGamePlayersInfo = async (repliedMessage) => {
   console.log('Ended updatePlayersInfo');
   return userInfo;
 };
+const checkGameMessageValidity = async (repliedMessage) => {
+  let splitMessage = repliedMessage.text.split('\n');
+  let lastIndex = splitMessage.length - 1;
+  if (!~splitMessage[lastIndex].indexOf('Game Length:')) return false;
+  else return true;
+};
 const parseGameMessage = async (repliedMessage) => {
   try {
     let userInfo = [];
+    let packs = [];
     let splitMessage = repliedMessage.text.split('\n');
     const totalPlayers = parseInt(splitMessage[0].match(/(?<=\/)(.*)/g));
     const playersAlive = parseInt(splitMessage[0].match(/(?<=:)(.*)(?=\/)/g));
@@ -150,27 +191,7 @@ const parseGameMessage = async (repliedMessage) => {
         role = lineRole.match(/(?<=).*[a-zA-z]/)[0].trim();
       }
       const winningStatus = line.match(/\b(Won|Lost)\b/)[0].trim();
-      // const nameInfo = repliedMessage.entities.filter(
-      //   (entity) =>
-      //     entity !== undefined &&
-      //     entity.type === 'text_mention' &&
-      //     entity.user.first_name == name
-      // );
-      // if (nameInfo.length > 0) {
-      //   const { username, id } = nameInfo[0].user;
-      //   if (winningStatus === 'Won') {
-      //     const { points } = Promise.all(
-      //       savePlayerPoints({
-      //         username,
-      //         id,
-      //         name,
-      //         role,
-      //         winningStatus,
-      //       })
-      //     );
       userInfo.push({ name, role, lifeStatus, winningStatus });
-      // }
-      // }
     });
     let promises = [];
     userInfo.forEach(async (user, idx) => {
@@ -204,8 +225,30 @@ const parseGameMessage = async (repliedMessage) => {
       const savedWinners = savedWinner[winnerCount];
       if (user.winningStatus == 'Won') {
         winnerCount++;
-        const { gainedPoints, totalPoints } = savedWinners;
-        return { ...user, gainedPoints, totalPoints };
+        const { gainedPoints, totalPoints, packInfo } = savedWinners;
+        if (packInfo.name) {
+          if (packs.some((pack) => pack.name === packInfo.name)) {
+            packs = packs.map((pack) => {
+              return {
+                ...pack,
+                gainedPoints: pack.gainedPoints + packInfo.gainedPoints,
+              };
+            });
+          } else {
+            packs.push(packInfo);
+          }
+          return {
+            ...user,
+            gainedPoints,
+            totalPoints,
+            packInfo,
+          };
+        }
+        return {
+          ...user,
+          gainedPoints,
+          totalPoints,
+        };
       } else return { ...user };
     });
     userInfo = userInfo.filter((user) => user.winningStatus == 'Won');
@@ -216,7 +259,8 @@ const parseGameMessage = async (repliedMessage) => {
       numberOfWinners: userInfo.filter((user) => user.winningStatus === 'Won')
         .length,
     };
-    return { userInfo, gameInfo };
+
+    return { userInfo, gameInfo, packs };
   } catch (err) {
     console.log(err);
     sendError(err);
@@ -224,40 +268,30 @@ const parseGameMessage = async (repliedMessage) => {
 };
 const savePlayerPoints = async (playerInfo) => {
   try {
+    console.log('Player Info:', playerInfo);
     const { username, id, first_name, role, winningStatus } = playerInfo;
     let scoredPoints;
+    let packInfo;
     if (winningStatus === 'Won') {
       const findPlayer = await Players.findOne({ TelegramId: id });
       const { points } = await getRolePoints(role);
-      // console.log(findPlayer);
       if (findPlayer) {
+        if (findPlayer.pack) {
+          console.log(`${findPlayer.firstName} is in pack ${findPlayer.pack}`);
+          packInfo = await getPackInfo(findPlayer.pack);
+        }
         const userHasPoints = await Points.findOne({
           playerId: findPlayer._id,
         });
         if (userHasPoints) {
-          // console.log(userHasPoints);
-          if (findPlayer.pack) {
-            console.log(
-              `${findPlayer.firstName} is in pack ${findPlayer.pack}`
-            );
-            scoredPoints = await Points.findOneAndUpdate(
-              { playerId: findPlayer._id },
-              {
-                howlPoints: userHasPoints.howlPoints + points,
-                packId: findPlayer.pack,
-              },
-              { new: true }
-            );
-            // pack = findPlayer.pack;
-          } else {
-            scoredPoints = await Points.findOneAndUpdate(
-              { playerId: findPlayer._id },
-              {
-                howlPoints: userHasPoints.howlPoints + points,
-              },
-              { new: true }
-            );
-          }
+          scoredPoints = await Points.findOneAndUpdate(
+            { playerId: findPlayer._id },
+            {
+              howlPoints: userHasPoints.howlPoints + points,
+              packId: findPlayer.pack,
+            },
+            { new: true }
+          );
         } else {
           console.log('Creating new points');
           scoredPoints = await Points.create({
@@ -273,22 +307,77 @@ const savePlayerPoints = async (playerInfo) => {
           userName: username ? username.toLowerCase() : null,
         });
         // console.log(newPlayer);
-        const { points } = await getRolePoints(role);
+        // const { points } = await getRolePoints(role);
         scoredPoints = await Points.create({
           playerId: newPlayer._id,
           howlPoints: points,
         });
       }
-      // console.log(scoredPoints);
       return {
         gainedPoints: points,
         totalPoints: scoredPoints.howlPoints,
         name: first_name,
+        packInfo: packInfo
+          ? { ...packInfo, gainedPoints: points }
+          : { ...packInfo },
       };
     }
   } catch (err) {
     console.log(err.message);
   }
+};
+const getPackInfo = async (packId) => {
+  try {
+    const pack = await Packs.findById(packId);
+    // console.log(pack);
+    const points = await Points.find({ packId: packId });
+    console.log(points);
+    if (points && pack) {
+      let packPoints = 0;
+      points.forEach((point) => {
+        packPoints += point.howlPoints;
+      });
+      return {
+        isAPack: true,
+        name: pack.name,
+        emblem: pack.emblem,
+        points: packPoints,
+      };
+    } else {
+      return { isAPack: false };
+    }
+  } catch (err) {
+    console.log(err);
+    return { isAPack: false };
+  }
+};
+const getPackMemberAndPoints = async (packId) => {
+  const pack = await Packs.findById(packId);
+  await deleteAlphaLessPack(false, pack._id);
+  let promises = [];
+  let packPoints = 0;
+  const points = await Points.find({ packId: packId });
+  if (points) {
+    points.forEach((point) => {
+      packPoints += point.howlPoints;
+    });
+  }
+  pack.alphas.forEach(async (alphaId) => {
+    promises.push(Players.findById(alphaId));
+  });
+  let packAlphas = await Promise.all(promises);
+  promises = [];
+  pack.members.forEach(async (memberId) => {
+    promises.push(Players.findById(memberId));
+  });
+  let packMembers = await Promise.all(promises);
+  return {
+    name: pack.name,
+    emblem: pack.emblem,
+    members: packMembers,
+    alphas: packAlphas,
+    point: packPoints,
+  };
 };
 const sendError = async (err, ctx) => {
   try {
@@ -308,6 +397,11 @@ const sendError = async (err, ctx) => {
 };
 
 module.exports = {
+  deleteAlphaLessPack,
+  checkGameMessageValidity,
+  checkIfReplyToMessageExists,
+  getPackMemberAndPoints,
+  getPackInfo,
   checkGameMode,
   checkUserRole,
   checkIfPackAlpha,
@@ -317,4 +411,5 @@ module.exports = {
   sendError,
   sendFindPlayerReplyMessage,
   findPlayerInfo,
+  deletionWarningMessage,
 };

@@ -4,6 +4,8 @@ const config = require('config');
 const botToken = config.get('botToken');
 const bot = new Telegraf(botToken);
 const replyMsg = require('./replies');
+const { Extra, Markup } = require('telegraf');
+
 const {
   helpCommand,
   startBotCommand,
@@ -21,6 +23,10 @@ const {
   makeAlphaCommand,
   createPackCommand,
   deletePackCommand,
+  cancelAction,
+  silenceHowlsAction,
+  listPacksCommand,
+  leavePackCommand,
 } = require('./commands');
 const { checkGameMode, sendError } = require('./actions');
 const { checkFindPlayerRegex } = require('./utils/helpers');
@@ -75,7 +81,6 @@ bot.command('find', async (ctx) => {
 bot.command('make_alpha', async (ctx) => await makeAlphaCommand(ctx));
 bot.command('create_pack', async (ctx) => await createPackCommand(ctx));
 bot.command('delete_pack', async (ctx) => await deletePackCommand(ctx));
-
 bot.command('changeMode', async (ctx) => await changeModeCommand(ctx));
 bot.command('check', async (ctx) => await checkPlayerCommand(ctx));
 // Handles updating users howl points if called by admin in reply to a game end message
@@ -84,6 +89,9 @@ bot.command('howl_points', async (ctx) => await howlPointsCommand(ctx));
 bot.command('silence_howls', async (ctx) => await silenceHowlsCommand(ctx));
 // Handles the return of the mightiest player with the best howl points in packWar or loneWolf mode
 bot.command('loudest_howls', async (ctx) => await loudestHowlsCommand(ctx));
+// Handles the return of the mightiest packs with the best howlers
+bot.command('list_packs', async (ctx) => await listPacksCommand(ctx));
+bot.command('leave_pack', async (ctx) => await leavePackCommand(ctx));
 // Handles initiate or claim players to a pack
 bot.command('initiate', async (ctx) => await claimPackMemberCommand(ctx));
 bot.command('claim', async (ctx) => await claimPackMemberCommand(ctx));
@@ -96,5 +104,6 @@ bot.command(
   'delete_last_game',
   async (ctx) => await deleteLastGameCommand(ctx)
 );
-// bot.hears('hi', (ctx) => ctx.reply('Hey there'));
+bot.action(/(?=cancel)(.*)/i, async (ctx) => await cancelAction(ctx));
+bot.action('silence howls', async (ctx) => await silenceHowlsAction(ctx));
 bot.launch();

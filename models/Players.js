@@ -10,8 +10,11 @@ const playersSchema = mongoose.Schema({
   firstName: String,
   userName: {
     type: String,
-    unique: true,
-    sparse: true,
+    trim: true,
+    index: {
+      unique: true,
+      partialFilterExpression: { userName: { $type: 'string' } },
+    },
   },
   loneWolfMode: {
     gamesWonCount: Number,

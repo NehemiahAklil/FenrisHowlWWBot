@@ -1,4 +1,5 @@
 node_modules/
+.vscode/
 *.txt
 keyboard-bot.js
 try.js

@@ -4,6 +4,13 @@ const packsSchema = mongoose.Schema({
   name: {
     type: String,
     unique: true,
+    trim: true,
+    required: true,
+  },
+  emblem: {
+    type: String,
+    unique: true,
+    trim: true,
     required: true,
   },
   alphas: {
