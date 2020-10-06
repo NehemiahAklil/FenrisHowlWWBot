@@ -1,7 +1,11 @@
 import telegraf from 'telegraf';
 const { Extra } = telegraf;
 import replies from '../replies.js';
-import { sendError, checkIfReplyToMessageExists } from '../actions.js';
+import {
+  sendError,
+  checkIfReplyToMessageExists,
+  checkConds,
+} from '../actions.js';
 import { getPackNameAndEmblemFromMessage } from '../utils/helpers.js';
 //import mongoose models schemas
 import Packs from '../models/Packs.js';
@@ -14,6 +18,7 @@ const chats = config.get('chats');
 
 export const randomBetaCommand = async (ctx) => {
   try {
+    if (await checkConds(ctx, false)) return;
     let betaArray = [
       'Summer',
       'Nathan',

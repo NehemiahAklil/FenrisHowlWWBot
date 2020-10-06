@@ -84,6 +84,10 @@ bot.command(
   'delete_pack',
   async (ctx) => await commands.deletePackCommand(ctx)
 );
+bot.command(
+  'remove_alpha',
+  async (ctx) => await commands.removeAlphaCommand(ctx)
+);
 /* Pack Alpha Commands */
 bot.command('leave_pack', async (ctx) => await commands.leavePackCommand(ctx));
 bot.command('make_alpha', async (ctx) => await commands.makeAlphaCommand(ctx));
@@ -102,10 +106,6 @@ bot.command(
 bot.command(
   'rename_pack',
   async (ctx) => await commands.renamePackCommand(ctx)
-);
-bot.command(
-  'remove_alpha',
-  async (ctx) => await commands.removeAlphaCommand(ctx)
 );
 
 /* Normal Players Commands */
@@ -144,7 +144,7 @@ bot.command(
 /*  Functionality Commands */
 bot.command('check', async (ctx) => await commands.checkPlayerCommand(ctx));
 bot.command('ping', async (ctx) => await commands.pingCommand(ctx));
-bot.command('groupInfo', async (ctx) => await commands.checkGroupCommand(ctx));
+bot.command('group_info', async (ctx) => await commands.checkGroupCommand(ctx));
 bot.command(
   'reorder_beta',
   async (ctx) => await commands.randomBetaCommand(ctx)

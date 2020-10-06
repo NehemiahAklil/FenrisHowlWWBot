@@ -15,17 +15,20 @@ const replies = {
      /howl_points Reply to black werewolf game end message to save howl points
      /silence_howls ⚠ Be cautious when using this command it deletes all howl points collected in server⚠
      /create_pack Creates a new pack by sending a name and also add emblem emoji after name
-    
- 🐺✨ <b>Admins with pack owner privileges command</b> 🐺✨
+     /reorder_beta Sends a list of betas in two groups in random order
+     
+ 🐺 <b>Admins with pack owner privileges command</b> 🐺
      /transfer_ownership transfer your pack ownership to an alpha by replying to them(Note you can only make group admins owners)
      /delete_pack deletes pack owners current pack and removes players and admins form it
+     /remove_alpha Removes alpha from the owners pack
 
- 🐺⚡<b>Admins with pack alpha privileges command</b> 🐺⚡
+ ⚡ <b>Admins with pack alpha privileges command</b> ⚡
      (also includes owner)
      /make_alpha makes player a pack alpha
      /make_beta makes player a pack beta
+     /leave_pack retires alpha from current pack
      
- 🐺 <b>Admins with pack beta privileges command</b> 🐺
+ 🐶 <b>Admins with pack beta privileges command</b> 🐶
      (also includes alphas and owner)
      /initiate and /claim Reply to any group member message to add to your pack(Player must be unaffiliated to any pack for command to work)
      /banish Reply to a pack members message to remove them from pack
@@ -37,15 +40,16 @@ const replies = {
      /delete_last_game Deletes the last game saved to database
     
   🎉 <b>Normal Commands</b> 🎉
-     /loudest_howls Sends the Top 5 Event Best Howlers of the event    
+     /loudest_howls Sends the Top 5 Event Best Howlers of the event
+     /list_packs Sends the ranking of the current participating packs in the event    
      /find Followed by @username or telegram id of a player to see event their status
      /check_howls Reply to a group member message to see their event status
-     /list_packs Sends the current pack's in wars 
      /role_points Sends a list of black werewolf roles with their respective points a player gets if they win alive or dead
      
     👀 <b>Functionality Commands(Event helpful commands)</b> 👀
      /check Sends group members status and id from reply message()
-     
+     /ping Sends pong with response time use it to check if bot is working
+     /group_info Sends if group is whitelisted or not with id
      
 For any bug reports or additional ideas for the bot contact me the developer <a href="tg://user?id=${devId}">Nehemiah Aklil</a> or any of the <a href="https://t.me/Ethiowerewolf">Ethio Werewolf - The Origin</a> Admins
      `,
