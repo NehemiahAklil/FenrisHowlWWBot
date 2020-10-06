@@ -7,12 +7,13 @@
     "bot",
     "event"
   ],
-  "main": "app.js",
+  "main": "index.cjs",
   "author": "Nehemiah Aklil",
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "start": "node --experimental-json-modules app.js",
+    "start": "micro-bot",
+    "homstart": "node --experimental-json-modules app.js",
     "dev": "nodemon --experimental-json-modules app.js"
   },
   "engines": {
@@ -24,6 +25,7 @@
   },
   "dependencies": {
     "config": "^3.3.1",
+    "micro-bot": "^2.5.3",
     "mongoose": "^5.10.5",
     "telegraf": "^3.38.0"
   },

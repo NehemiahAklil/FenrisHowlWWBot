@@ -1,4 +1,5 @@
 import Telegraf from 'telegraf';
+const { Composer } = Telegraf;
 import mongoose from 'mongoose';
 import config from 'config';
 import * as commands from './commands/exportCommands.js';
@@ -7,7 +8,7 @@ import { checkFindPlayerRegex } from './utils/helpers.js';
 
 const botToken = config.get('botToken');
 const mongoUrl = config.get('mongoUrl');
-const bot = new Telegraf(botToken);
+const bot = new Composer();
 
 bot.context.db = {
   chats: [[-1001481551076, -1001312396621, -1001489686481, -1001209394670]],
@@ -165,4 +166,10 @@ bot.action(
   async (ctx) => await commands.silenceHowlsAction(ctx)
 );
 bot.action('delete pack', async (ctx) => await commands.deletePackAction(ctx));
-bot.launch().then(() => console.log("Fenris' Howl Bot Launched"));
+
+// bot.launch().then(() => console.log("Fenris' Howl Bot Launched"));
+
+export default bot;
+
+// immense-gorge-11240
+// https://immense-gorge-11240.herokuapp.com/
