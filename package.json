@@ -1,12 +1,26 @@
 {
-  "name": "FenrisHowlWWBot",
+  "name": "FenrisHowlBot",
   "version": "1.0.0",
-  "description": "A helper bot made for counting howl points in Ethio Werewolf - The Origin",
+  "description": "A Telegram bot made for helping count howl points in Ethio Werewolf - The Origin's Pack Wars Event",
+  "keywords": [
+    "telegarm",
+    "bot",
+    "event"
+  ],
   "main": "app.js",
   "author": "Nehemiah Aklil",
   "license": "MIT",
+  "type": "module",
   "scripts": {
-    "start": "nodemon app.js"
+    "start": "node --experimental-json-modules app.js",
+    "dev": "nodemon --experimental-json-modules app.js"
+  },
+  "engines": {
+    "node": "14.13.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/NehemiahAklil/FenrisHowlWWBot.git"
   },
   "dependencies": {
     "config": "^3.3.1",
@@ -14,6 +28,7 @@
     "telegraf": "^3.38.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.4"
+    "nodemon": "^2.0.4",
+    "prettier": "^2.1.2"
   }
 }

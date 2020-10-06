@@ -1,65 +1,114 @@
-const Telegraf = require('telegraf');
-const mongoose = require('mongoose');
-const config = require('config');
-const botToken = config.get('botToken');
-const bot = new Telegraf(botToken);
-const replyMsg = require('./replies');
-const { Extra, Markup } = require('telegraf');
+import Telegraf from 'telegraf';
+import mongoose from 'mongoose';
+import config from 'config';
+import * as commands from './commands/exportCommands.js';
+import { sendError } from './actions.js';
+import { checkFindPlayerRegex } from './utils/helpers.js';
 
-const {
-  helpCommand,
-  startBotCommand,
-  howlPointsCommand,
-  silenceHowlsCommand,
-  checkPlayerCommand,
-  changeModeCommand,
-  findPlayerByIdCommand,
-  findPlayerByUsernameCommand,
-  loudestHowlsCommand,
-  claimPackMemberCommand,
-  banishPackMemberCommand,
-  deleteGameCommand,
-  deleteLastGameCommand,
-  makeAlphaCommand,
-  createPackCommand,
-  deletePackCommand,
-  cancelAction,
-  silenceHowlsAction,
-  listPacksCommand,
-  leavePackCommand,
-} = require('./commands');
-const { checkGameMode, sendError } = require('./actions');
-const { checkFindPlayerRegex } = require('./utils/helpers');
+const botToken = config.get('botToken');
+const mongoUrl = config.get('mongoUrl');
+const bot = new Telegraf(botToken);
+
+bot.context.db = {
+  chats: [[-1001481551076, -1001312396621, -1001489686481, -1001209394670]],
+  getChats: function () {
+    return this.chats;
+  },
+};
+
 bot.use(async (ctx, next) => {
   const start = new Date();
+  ctx.state.time = start;
+  let chatId = ctx.chat.id;
   await next();
   const ms = new Date() - start;
-  console.log('Response time: %sms', ms);
+  ctx.state.time = ms;
+  console.log(`Response time: %sms ${ms} in ${chatId}`);
 });
-bot.catch((err, ctx) => {
-  console.log(`Ooops, encountered an error for ${ctx.updateType}`, err);
-});
-mongoose
-  .connect('mongodb://localhost/FenrisWW', {
-    useUnifiedTopology: true,
-    useNewUrlParser: true,
-    useFindAndModify: false,
-    useCreateIndex: true,
-    dbName: 'FenrisWW',
-  })
-  .then(() => {
-    console.log('Connected to FenrisWW');
-    // bot.startPolling();
-  })
-  .catch((err) => console.log(err));
-mongoose.Promise = global.Promise;
-//Handles on start message or '/start' command
-bot.start(async (ctx) => await startBotCommand(ctx));
-//Handles on help message or '/help' command
-bot.help(async (ctx) => await helpCommand(ctx));
-// bot.on('sticker', (ctx) => ctx.reply('👍'));
+bot.catch((err, ctx) =>
+  console.log(`Ooops, encountered an error for ${ctx.updateType}`, err)
+);
 
-// Handles finding users by Id or userName from db to display their howl points
+// connect with mongoose database
+(async () => {
+  try {
+    const dbConfigs = {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+      useFindAndModify: false,
+      useCreateIndex: true,
+    };
+    const db = await mongoose.connect(mongoUrl, dbConfigs);
+    console.log(`Connected to ${db.connection.name}`);
+  } catch (err) {
+    console.log(err);
+    await sendError(err);
+  }
+})();
+
+bot.start(async (ctx) => await commands.startBotCommand(ctx));
+bot.help(async (ctx) => await commands.helpCommand(ctx));
+
+/*    Admin Commands   */
+bot.command(
+  'howl_points',
+  async (ctx) => await commands.howlPointsCommand(ctx)
+);
+bot.command(
+  'silence_howls',
+  async (ctx) => await commands.silenceHowlsCommand(ctx)
+);
+bot.command(
+  'create_pack',
+  async (ctx) => await commands.createPackCommand(ctx)
+);
+/*   Under development Admin commands */
+bot.command(
+  'changeMode',
+  async (ctx) => await commands.underDevelopmentCommand(ctx)
+);
+bot.command(
+  'delete_last_game',
+  async (ctx) => await commands.underDevelopmentCommand(ctx)
+);
+bot.command(
+  'delete_game',
+  async (ctx) => await commands.underDevelopmentCommand(ctx)
+);
+/* Pack Owner Commands */
+bot.command(
+  'transfer_ownership',
+  async (ctx) => await commands.transferOwnershipCommand(ctx)
+);
+bot.command(
+  'delete_pack',
+  async (ctx) => await commands.deletePackCommand(ctx)
+);
+/* Pack Alpha Commands */
+bot.command('leave_pack', async (ctx) => await commands.leavePackCommand(ctx));
+bot.command('make_alpha', async (ctx) => await commands.makeAlphaCommand(ctx));
+bot.command('make_beta', async (ctx) => await commands.makeBetaCommand(ctx));
+
+/* Pack Betas Commands */
+bot.command('claim', async (ctx) => await commands.claimPackMemberCommand(ctx));
+bot.command(
+  'initiate',
+  async (ctx) => await commands.claimPackMemberCommand(ctx)
+);
+bot.command(
+  'banish',
+  async (ctx) => await commands.banishPackMemberCommand(ctx)
+);
+bot.command(
+  'rename_pack',
+  async (ctx) => await commands.renamePackCommand(ctx)
+);
+bot.command(
+  'remove_alpha',
+  async (ctx) => await commands.removeAlphaCommand(ctx)
+);
+
+/* Normal Players Commands */
 bot.command('find', async (ctx) => {
   try {
     const { type, parsedRegex, errorMsg } = await checkFindPlayerRegex(
@@ -67,43 +116,53 @@ bot.command('find', async (ctx) => {
     );
     switch (type) {
       case 'findById':
-        return await findPlayerByIdCommand(parsedRegex, ctx);
+        return await commands.findPlayerByIdCommand(parsedRegex, ctx);
       case 'findByUsername':
-        return await findPlayerByUsernameCommand(parsedRegex, ctx);
+        return await commands.findPlayerByUsernameCommand(parsedRegex, ctx);
       default:
         return ctx.reply(errorMsg);
     }
   } catch (err) {
-    sendError(err, ctx);
+    await sendError(err, ctx);
     return console.log(err);
   }
 });
-bot.command('make_alpha', async (ctx) => await makeAlphaCommand(ctx));
-bot.command('create_pack', async (ctx) => await createPackCommand(ctx));
-bot.command('delete_pack', async (ctx) => await deletePackCommand(ctx));
-bot.command('changeMode', async (ctx) => await changeModeCommand(ctx));
-bot.command('check', async (ctx) => await checkPlayerCommand(ctx));
-// Handles updating users howl points if called by admin in reply to a game end message
-bot.command('howl_points', async (ctx) => await howlPointsCommand(ctx));
-//Handles deleting part of the db's collections
-bot.command('silence_howls', async (ctx) => await silenceHowlsCommand(ctx));
-// Handles the return of the mightiest player with the best howl points in packWar or loneWolf mode
-bot.command('loudest_howls', async (ctx) => await loudestHowlsCommand(ctx));
-// Handles the return of the mightiest packs with the best howlers
-bot.command('list_packs', async (ctx) => await listPacksCommand(ctx));
-bot.command('leave_pack', async (ctx) => await leavePackCommand(ctx));
-// Handles initiate or claim players to a pack
-bot.command('initiate', async (ctx) => await claimPackMemberCommand(ctx));
-bot.command('claim', async (ctx) => await claimPackMemberCommand(ctx));
-// Handles dropping player from a clan
-bot.command('banish', async (ctx) => await banishPackMemberCommand(ctx));
-// Handles deleting a game when given an id
-bot.command('delete_game', async (ctx) => await deleteGameCommand(ctx));
-// Handles deleting the last game played from db
 bot.command(
-  'delete_last_game',
-  async (ctx) => await deleteLastGameCommand(ctx)
+  'check_howls',
+  async (ctx) => await commands.checkHowlsCommand(ctx)
 );
-bot.action(/(?=cancel)(.*)/i, async (ctx) => await cancelAction(ctx));
-bot.action('silence howls', async (ctx) => await silenceHowlsAction(ctx));
-bot.launch();
+bot.command(
+  'loudest_howls',
+  async (ctx) => await commands.loudestHowlsCommand(ctx)
+);
+bot.command('list_packs', async (ctx) => await commands.listPacksCommand(ctx));
+bot.command(
+  'role_points',
+  async (ctx) => await commands.rolePointsCommand(ctx)
+);
+
+/*  Functionality Commands */
+bot.command('check', async (ctx) => await commands.checkPlayerCommand(ctx));
+bot.command('ping', async (ctx) => await commands.pingCommand(ctx));
+bot.command('groupInfo', async (ctx) => await commands.checkGroupCommand(ctx));
+bot.command(
+  'reorder_beta',
+  async (ctx) => await commands.randomBetaCommand(ctx)
+);
+/* Bot Creator Commands */
+bot.command(
+  'devDisband',
+  async (ctx) => await commands.devDisbandPackCommand(ctx)
+);
+bot.command(
+  'devKill',
+  async (ctx) => await commands.devDeletePlayerCommand(ctx)
+);
+/*    Actions  */
+bot.action(/(?=cancel)(.*)/i, async (ctx) => await commands.cancelAction(ctx));
+bot.action(
+  'silence howls',
+  async (ctx) => await commands.silenceHowlsAction(ctx)
+);
+bot.action('delete pack', async (ctx) => await commands.deletePackAction(ctx));
+bot.launch().then(() => console.log("Fenris' Howl Bot Launched"));

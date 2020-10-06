@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const pointsSchema = mongoose.Schema({
   gameId: {
@@ -20,4 +20,4 @@ const pointsSchema = mongoose.Schema({
   },
 });
 const Points = mongoose.model('Points', pointsSchema);
-module.exports = Points;
+export default Points;
