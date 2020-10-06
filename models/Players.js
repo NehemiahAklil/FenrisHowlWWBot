@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const playersSchema = mongoose.Schema({
   TelegramId: {
@@ -27,4 +27,4 @@ const playersSchema = mongoose.Schema({
   },
 });
 const Players = mongoose.model('Players', playersSchema);
-module.exports = Players;
+export default Players;

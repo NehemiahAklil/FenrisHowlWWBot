@@ -1,7 +1,6 @@
 {
   "botToken": "1207445796:AAFXaRLh8OutS05up5A9mnYzmafHB826q6Q",
   "devId": 528744128,
-  "chats": [-1001481551076,-1001312396621, -1001489686481,-1001209394670],
-  "mongoLocalUrl": "mongodb://localhost/FenrisWW",
+  "chats": [-1001481551076,-1001312396621, -1001489686481],
   "mongoUrl": "mongodb+srv://FenrisBot:theMightiestWolveToHowl28@cluster0.zs3os.mongodb.net/FenrisHowlDB?retryWrites=true&w=majority"
 }

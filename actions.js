@@ -1,14 +1,18 @@
-const Telegraf = require('telegraf');
-const { Extra, Markup } = require('telegraf');
-const config = require('config');
+import Telegraf from 'telegraf';
+import telegraf from 'telegraf';
+const { Extra, Markup } = telegraf;
+import { removeFirstAndTwoOfLast, getRolePoints } from './utils/helpers.js';
+import replies from './replies.js';
+//import mongoose models schemas
+import Packs from './models/Packs.js';
+import Players from './models/Players.js';
+import Points from './models/Points.js';
+//Get sensitive files from config
+import config from 'config';
 const botToken = config.get('botToken');
 const devId = config.get('devId');
+const chats = config.get('chats');
 const { telegram } = new Telegraf(botToken);
-const { removeFirstAndTwoOfLast, getRolePoints } = require('./utils/helpers');
-const replies = require('./replies');
-const Packs = require('./models/Packs');
-const Players = require('./models/Players');
-const Points = require('./models/Points');
 
 const checkGameMode = async (db) => {
   switch (db.gameMode) {
@@ -20,13 +24,37 @@ const checkGameMode = async (db) => {
       return 'NoMode';
   }
 };
-const checkIfReplyToMessageExists = async (ctx) => {
+const checkConds = async (ctx, isInReply) => {
+  const { isAdmin } = await checkUserRole(ctx);
+  if (!isAdmin) {
+    ctx.reply(replies.admin.onlyAdminsAllowedMsg);
+    return true;
+  }
+  if (!chats.includes(ctx.chat.id)) {
+    ctx.reply(replies.chat.denyAccess(ctx.chat.title));
+    await ctx.leaveChat(ctx.chat.id);
+    return true;
+  }
+  if (isInReply) {
+    const repliedToMessage = await checkIfReplyToMessageExists(ctx, false);
+    if (!repliedToMessage) return true;
+  } else {
+    return false;
+  }
+};
+const checkIfReplyToMessageExists = async (ctx, isABot) => {
   try {
     const repliedToMessage = ctx.message.reply_to_message || false;
     if (!repliedToMessage) {
       ctx.reply(replies.repliedMessage.notFound);
-      new Error("reply_to_message doesn't exist");
       return false;
+    }
+    if (!isABot) {
+      const isBot = ctx.message.reply_to_message.from.is_bot;
+      if (isBot) {
+        ctx.reply(replies.player.isBot);
+        return false;
+      }
     }
     return repliedToMessage;
   } catch (err) {
@@ -38,6 +66,8 @@ const checkUserRole = async (ctx) => {
   try {
     const chatInfo = ctx.chat.id;
     const userInfo = ctx.from.id;
+    const chatAdmins = ctx.getChatAdministrators(chatInfo);
+    console.log(chatAdmins);
     const user = await telegram.getChatMember(chatInfo, userInfo);
     if (['creator', 'administrator'].includes(user.status)) {
       return { isAdmin: true, role: user.status };
@@ -58,7 +88,7 @@ const deleteAlphaLessPack = async (pack, packId) => {
     return;
   } catch (err) {
     console.log(err);
-    sendError(err);
+    await sendError(err);
   }
 };
 const deletionWarningMessage = async (ctx, deletionType, deletionCallback) => {
@@ -74,21 +104,30 @@ const deletionWarningMessage = async (ctx, deletionType, deletionCallback) => {
   );
 };
 const findPlayerInfo = async (playerInfo) => {
-  let packInfo = {};
-  console.log(playerInfo._id);
-  console.log(playerInfo.pack);
+  let packInfo = false;
   const points = await Points.findOne({ playerId: playerInfo._id });
-  if (points) {
-    if (playerInfo.pack) {
-      const affiliatedPack = await Packs.findById(playerInfo.pack);
-      console.log(affiliatedPack.name);
-      packInfo = { name: affiliatedPack.name, emblem: affiliatedPack.emblem };
-    }
-    console.log(packInfo);
-    return { pack: packInfo, points: points.howlPoints };
-  } else {
-    return { pack: packInfo, points: 0 };
+  if (playerInfo.pack) {
+    const affiliatedPack = await Packs.findById(playerInfo.pack);
+    if (!affiliatedPack) return { message: replies.player.packNotFound };
+    const isAlpha = affiliatedPack.alphas.includes(playerInfo._id);
+    packInfo = {
+      name: affiliatedPack.name,
+      emblem: affiliatedPack.emblem,
+      isAlpha,
+    };
   }
+  if (points) return { pack: packInfo, points: points.howlPoints };
+  return { pack: packInfo, points: 0 };
+};
+const getBothRolePoints = async (role) => {
+  const { points: alivePoints } = await getRolePoints(role, 'Alive');
+  const { points: deadPoints } = await getRolePoints(role, 'Dead');
+  const points =
+    alivePoints === deadPoints
+      ? `${alivePoints}`
+      : `  <b>${alivePoints} Alive</b>  <b>${deadPoints} dead</b>`;
+  console.log(role + 'gets ' + points);
+  return { points };
 };
 const sendFindPlayerReplyMessage = async (
   ctx,
@@ -102,15 +141,19 @@ const sendFindPlayerReplyMessage = async (
     responseMsg = replies.findPlayer.responseMessage(
       TelegramId,
       firstName,
-      points
+      points,
+      pack
     );
+    if (pack) {
+      responseMsg += replies.findPlayer.withPackResponseAddOn(pack);
+    }
   } else {
     responseMsg = replies.findPlayer.zeroHowlResponseMsg(TelegramId, firstName);
+    if (pack) {
+      responseMsg += replies.findPlayer.zeroHowlWithPackResponseAddOn(pack);
+    }
   }
-  if (pack) {
-    responseMsg += replies.findPlayer.withPackResponseAddOn(pack);
-  }
-  return ctx.reply(responseMsg, Extra.HTML());
+  return ctx.replyWithHTML(responseMsg);
 };
 const checkIfPackAlpha = async (userId) => {
   try {
@@ -125,7 +168,12 @@ const checkIfPackAlpha = async (userId) => {
       return { isAlpha: false, message: replies.player.packNotFound };
     }
     if (usersPack.alphas.includes(player._id)) {
-      return { isAlpha: true, packId: player.pack, alpha: player };
+      return {
+        isAlpha: true,
+        packId: player.pack,
+        alpha: player,
+        pack: usersPack,
+      };
     } else
       return {
         isAlpha: false,
@@ -133,7 +181,85 @@ const checkIfPackAlpha = async (userId) => {
       };
   } catch (err) {
     console.log(err);
-    sendError(err, ctx);
+  }
+};
+const checkPackAdmin = async (userId) => {
+  try {
+    const checkAlpha = await checkIfPackAlpha(userId);
+    if (checkAlpha.isAlpha) return { ...checkAlpha, isPackAdmin: true };
+    const checkBeta = await checkIfPackBeta(userId);
+    if (checkBeta.isBeta) return { ...checkBeta, isPackAdmin: true };
+    return { isPackAdmin: false, message: replies.player.notAlphaOrBetaOfPack };
+  } catch (err) {
+    console.log(err);
+  }
+};
+const checkIfPackAdmin = async (userId) => {
+  try {
+    const checkAlpha = await checkIfPackAlpha(userId);
+    if (checkAlpha.isAlpha) return false;
+    const checkBeta = await checkIfPackBeta(userId);
+    return !checkBeta.isBeta;
+  } catch (err) {
+    console.log(err);
+    await sendError(err);
+  }
+};
+const checkIfPackBeta = async (userId) => {
+  try {
+    const player = await Players.findOne({ TelegramId: userId });
+    if (!player) {
+      return { isBeta: false, message: replies.player.notFound };
+    } else if (!player.pack) {
+      return { isBeta: false, message: replies.player.unAffiliated };
+    }
+    const usersPack = await Packs.findById(player.pack);
+    if (!usersPack) {
+      return { isBeta: false, message: replies.player.packNotFound };
+    }
+    if (usersPack.betas.includes(player._id)) {
+      return {
+        isBeta: true,
+        packId: player.pack,
+        beta: player,
+        pack: usersPack,
+      };
+    } else
+      return {
+        isBeta: false,
+        message: replies.player.notAlphaOfPack,
+      };
+  } catch (err) {
+    console.log(err);
+  }
+};
+const checkIfPackOwner = async (userId) => {
+  try {
+    const player = await Players.findOne({ TelegramId: userId });
+    if (!player) {
+      return { isOwner: false, message: replies.player.notFound };
+    } else if (!player.pack) {
+      return { isOwner: false, message: replies.player.unAffiliated };
+    }
+    const usersPack = await Packs.findById(player.pack);
+    console.log(usersPack._doc);
+    if (!usersPack) {
+      return { isOwner: false, message: replies.player.packNotFound };
+    }
+    if (usersPack.owner.toString() === player._id.toString()) {
+      return {
+        isOwner: true,
+        packId: player.pack,
+        owner: player,
+        pack: usersPack,
+      };
+    } else
+      return {
+        isOwner: false,
+        message: replies.player.notOwnerOfPack,
+      };
+  } catch (err) {
+    console.log(err);
   }
 };
 
@@ -143,9 +269,9 @@ const updateGamePlayersInfo = async (repliedMessage) => {
   );
   let promises = [];
   console.log('Started updatePlayersInfo');
-  userInfo.forEach(async (entity) => {
+  userInfo.forEach((entity) => {
     const { id, first_name, username } = entity.user;
-    await promises.push(
+    promises.push(
       Players.findOneAndUpdate(
         {
           TelegramId: id,
@@ -166,8 +292,7 @@ const updateGamePlayersInfo = async (repliedMessage) => {
 const checkGameMessageValidity = async (repliedMessage) => {
   let splitMessage = repliedMessage.text.split('\n');
   let lastIndex = splitMessage.length - 1;
-  if (!~splitMessage[lastIndex].indexOf('Game Length:')) return false;
-  else return true;
+  return ~splitMessage[lastIndex].indexOf('Game Length:');
 };
 const parseGameMessage = async (repliedMessage) => {
   try {
@@ -178,11 +303,14 @@ const parseGameMessage = async (repliedMessage) => {
     const playersAlive = parseInt(splitMessage[0].match(/(?<=:)(.*)(?=\/)/g));
     splitMessage = await removeFirstAndTwoOfLast(splitMessage);
 
-    await splitMessage.forEach(async (line, index) => {
+    splitMessage.forEach((line) => {
+      // Parse Life Status
       const lifeStatus = line.match(/\b(Dead|Alive)\b/)[0].trim();
+      // Parse Players Name
       let name = line.match(/🥉|🥇|🥈/)
         ? line.match(/(.*)(?=(🥉|🥇|🥈)+:)/)[0].trim()
         : line.match(/(.*)(?=(|🥉|🥇|🥈)+:)/)[0].trim();
+      // Parse Player role
       let lineRole = line.match(/(?<=-)(.*)(?=(Lost|Won))/)[0].trim();
       let role = '';
       if (/(\b(a|the)\b)/.test(lineRole.toLowerCase().trim())) {
@@ -190,28 +318,29 @@ const parseGameMessage = async (repliedMessage) => {
       } else {
         role = lineRole.match(/(?<=).*[a-zA-z]/)[0].trim();
       }
+      // Parse Player Winning Status
       const winningStatus = line.match(/\b(Won|Lost)\b/)[0].trim();
       userInfo.push({ name, role, lifeStatus, winningStatus });
     });
     let promises = [];
-    userInfo.forEach(async (user, idx) => {
+    userInfo.forEach((user, idx) => {
       const nameInfo = repliedMessage.entities.filter(
         (entity) => entity !== undefined && entity.type === 'text_mention'
       );
       const userInfos = nameInfo.filter((entInfo) => entInfo);
 
       if (userInfos.length > 0 && userInfos[idx] !== undefined) {
-        // console.log(userInfos[idx]);
         const { username, id, first_name } = userInfos[idx].user;
-        const { name, role, winningStatus } = user;
+        const { lifeStatus, role, winningStatus } = user;
         if (winningStatus === 'Won') {
-          await promises.push(
+          promises.push(
             savePlayerPoints({
               username,
               id,
               first_name,
               role,
               winningStatus,
+              lifeStatus,
             })
           );
         }
@@ -223,7 +352,7 @@ const parseGameMessage = async (repliedMessage) => {
     userInfo = userInfo.map((user, idx) => {
       const savedWinnersLength = savedWinner.length;
       const savedWinners = savedWinner[winnerCount];
-      if (user.winningStatus == 'Won') {
+      if (user.winningStatus === 'Won') {
         winnerCount++;
         const { gainedPoints, totalPoints, packInfo } = savedWinners;
         if (packInfo.name) {
@@ -263,18 +392,25 @@ const parseGameMessage = async (repliedMessage) => {
     return { userInfo, gameInfo, packs };
   } catch (err) {
     console.log(err);
-    sendError(err);
+    await sendError(err);
   }
 };
 const savePlayerPoints = async (playerInfo) => {
   try {
     console.log('Player Info:', playerInfo);
-    const { username, id, first_name, role, winningStatus } = playerInfo;
+    const {
+      username,
+      id,
+      first_name,
+      role,
+      winningStatus,
+      lifeStatus,
+    } = playerInfo;
     let scoredPoints;
     let packInfo;
     if (winningStatus === 'Won') {
       const findPlayer = await Players.findOne({ TelegramId: id });
-      const { points } = await getRolePoints(role);
+      const { points } = await getRolePoints(role, lifeStatus);
       if (findPlayer) {
         if (findPlayer.pack) {
           console.log(`${findPlayer.firstName} is in pack ${findPlayer.pack}`);
@@ -362,12 +498,17 @@ const getPackMemberAndPoints = async (packId) => {
       packPoints += point.howlPoints;
     });
   }
-  pack.alphas.forEach(async (alphaId) => {
+  pack.alphas.forEach((alphaId) => {
     promises.push(Players.findById(alphaId));
   });
   let packAlphas = await Promise.all(promises);
   promises = [];
-  pack.members.forEach(async (memberId) => {
+  pack.betas.forEach((betaId) => {
+    promises.push(Players.findById(betaId));
+  });
+  let packBetas = await Promise.all(promises);
+  promises = [];
+  pack.members.forEach((memberId) => {
     promises.push(Players.findById(memberId));
   });
   let packMembers = await Promise.all(promises);
@@ -376,6 +517,7 @@ const getPackMemberAndPoints = async (packId) => {
     emblem: pack.emblem,
     members: packMembers,
     alphas: packAlphas,
+    betas: packBetas,
     point: packPoints,
   };
 };
@@ -386,7 +528,7 @@ const sendError = async (err, ctx) => {
       ? `User <a href="tg://user?id=${ctx.from.id}">${ctx.from.first_name}</a> Experienced an Error:\n`
       : `<b>Error:</b>`;
 
-    await telegram.sendMessage(
+    return await telegram.sendMessage(
       devId,
       `${preText} <code>${err.message}.</code> \n\n<b>Full error:</b> \n${err}`,
       Extra.HTML()
@@ -396,7 +538,8 @@ const sendError = async (err, ctx) => {
   }
 };
 
-module.exports = {
+export {
+  checkPackAdmin,
   deleteAlphaLessPack,
   checkGameMessageValidity,
   checkIfReplyToMessageExists,
@@ -412,4 +555,9 @@ module.exports = {
   sendFindPlayerReplyMessage,
   findPlayerInfo,
   deletionWarningMessage,
+  checkIfPackOwner,
+  checkConds,
+  getBothRolePoints,
+  checkIfPackAdmin,
+  checkIfPackBeta,
 };
