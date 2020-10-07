@@ -7,7 +7,7 @@
     "bot",
     "event"
   ],
-  "main": "index.cjs",
+  "main": "index.js",
   "author": "Nehemiah Aklil",
   "license": "MIT",
   "type": "module",

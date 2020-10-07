@@ -1,6 +1,5 @@
 import Telegraf from 'telegraf';
-import telegraf from 'telegraf';
-const { Extra, Markup } = telegraf;
+const { Extra, Markup } = Telegraf;
 import { removeFirstAndTwoOfLast, getRolePoints } from './utils/helpers.js';
 import replies from './replies.js';
 //import mongoose models schemas

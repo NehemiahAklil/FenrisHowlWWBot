@@ -10,13 +10,6 @@ const botToken = config.get('botToken');
 const mongoUrl = config.get('mongoUrl');
 const bot = new Composer();
 
-bot.context.db = {
-  chats: [[-1001481551076, -1001312396621, -1001489686481, -1001209394670]],
-  getChats: function () {
-    return this.chats;
-  },
-};
-
 bot.use(async (ctx, next) => {
   const start = new Date();
   ctx.state.time = start;
@@ -169,7 +162,7 @@ bot.action('delete pack', async (ctx) => await commands.deletePackAction(ctx));
 
 // bot.launch().then(() => console.log("Fenris' Howl Bot Launched"));
 
-export default bot;
+module.exports = bot;
 
 // immense-gorge-11240
 // https://immense-gorge-11240.herokuapp.com/
